@@ -12,7 +12,7 @@ if [ -f "dataset.json" ]; then
   echo    
   if [[ ! $REPLY =~ ^[Yy]$ ]]
   then
-    echo "Bye!"
+    echo "Downloading cancelled"
     exit
   fi
 fi
