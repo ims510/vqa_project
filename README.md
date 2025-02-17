@@ -14,6 +14,7 @@ Au cas où le téléchargement avec le script bash ne marche pas, utilisez simpl
 
 Pour télécharger les images associés aux questions:
 ```
+cd data
 bash download_images.sh
 ```
 Attention! Il s'agit de 43000 images en format .jpg, donc le temps de téléchargement peut être assez long. 
