@@ -38,9 +38,9 @@ class CoAttention(nn.Module):
         Je multiplie Q avec WcV pour obtenir la matrice d'affinité et je l'active avec tanh.
         
         La tangente est une activation entre [-1 et 1], on l'utilise pour l'attention
-        parce que comme elle prend en compte les valeurs négatifs, elle peut apprendre les affinités de 
+        parce qu'elle prend en compte les valeurs négatifs, elle peut apprendre les affinités 
         entre la question et l'image, mais aussi les 'repulsions' (ce que je ne demande pas). Si une valeur
-        est negative, cette region de l'image n'est pas pertinente pour la question.
+        est negative, cette region de l'image n'est pas pertinente pour  répondre à la question.
         
         
         '''
@@ -72,21 +72,50 @@ class CoAttention(nn.Module):
         return v_hat, q_hat
 
 class Net(nn.Module):
-    def __init__(self, d1=2048, d2=300, k=512):  #d1: imagee, d2: question
+    def __init__(self, d1=2048, d2=768, d3=768, k=768):  #d1: imagee, d2: question, d3: dimension de chaque option de reponse séparée
         super(Net, self).__init__()
         self.co_attention = CoAttention(d1, d2, k)
-        self.fc1 = nn.Linear(d1 + d2, 1024)
+        self.fc1 = nn.Linear(d1 + d2 + d3, 1024)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(1024, 512)
         self.fc3 = nn.Linear(512, 4)
 
-    def forward(self, V, Q):
+    # def forward(self, V, Q, choices):
+    #     v_hat, q_hat = self.co_attention(V, Q)
+        
+    #     scores = []
+    #     for choice in choices:
+    #         x = torch.cat([v_hat, q_hat, choice], dim=1)  
+    #         x = self.relu(self.fc1(x))
+    #         x = self.relu(self.fc2(x))
+    #         x = self.fc3(x)
+    #         scores.append(x)
+        
+    #     scores = torch.cat(scores, dim=1) 
+    #     return scores
+    
+    def forward(self, V, Q, choices):
         v_hat, q_hat = self.co_attention(V, Q)
-        x = torch.cat([v_hat, q_hat], dim=1)  #je concatene mes vecteurs d'attention
+        
+        # V = V.unsqueeze(1).expand(-1, 4, -1)  
+        # Q = Q.unsqueeze(1).expand(-1, 4, -1)  
+        v_hat = v_hat.unsqueeze(1)
+        q_hat = q_hat.unsqueeze(1)
+        print(v_hat.shape)
+        print(q_hat.shape)
+
+        x = torch.cat([v_hat, q_hat, choices], dim=1)  
+        print("Shape of x after concatenation:", x.shape)
+        
+        
+        # print("v_hat shape:", v_hat.shape)
+        # print("q_hat shape:", q_hat.shape)
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+        x = self.fc3(x)  
+        
+        scores = x.squeeze(-1)
+        return scores
 
 class CustomDataLoader:
     def __init__(self, dataframe, batch_size=32):
@@ -115,32 +144,29 @@ class CustomDataLoader:
         return self._create_loader(self.eval_data)
 
     def _create_loader(self, data):
-        feature_columns = ['feature_vector', 'question_embedding', 'choice1_embedding', 
-                        'choice2_embedding', 'choice3_embedding', 'choice4_embedding']
         
-        feature_matrices = []
+        V = np.array([np.array(eval(x)) if isinstance(x, str) else np.array(x) for x in data['feature_vector'].values])
+        Q = np.array([np.array(eval(x)) if isinstance(x, str) else np.array(x) for x in data['question_embedding'].values])
         
-        for col in feature_columns:
-            try:
-                # Convert each cell into a NumPy array
-                column_data = np.array([np.array(eval(x)) if isinstance(x, str) else np.array(x) for x in data[col].values])
-                
-                print(f"Column: {col}, Extracted Shape: {column_data.shape}")  # Should be (N, embedding_dim)
-                
-                feature_matrices.append(column_data)
-            except Exception as e:
-                print(f"Error processing column {col}: {e}")
-
-        # Stack along axis 1
-        features = np.concatenate(feature_matrices, axis=1)
-        print(f"Final feature matrix shape: {features.shape}")  # Should be (N, 5888)
+        choice_columns = ['choice1_embedding', 'choice2_embedding', 'choice3_embedding', 'choice4_embedding']
+        choices = [np.array([np.array(eval(x)) if isinstance(x, str) else np.array(x) for x in data[col].values]) for col in choice_columns]
+        choices = [torch.tensor(choice, dtype=torch.float32) for choice in choices]
+        choices = torch.stack(choices, dim=1)
+    
+        # print("Shape of choices:", choices.shape)       
         
-        features = torch.tensor(features).float()
-
-        # print(data['answer'].head())
-        # print(data['answer'].dtype)
-        labels = torch.tensor(np.array(data['answer'].tolist()).argmax(axis=1)).long()
+        V = torch.tensor(V, dtype=torch.float32)
+        Q = torch.tensor(Q, dtype=torch.float32)
         
-        dataset = TensorDataset(features, labels)
-        return DataLoader(dataset, batch_size=self.batch_size)
+        V = V.unsqueeze(1).expand(-1, 4, -1)  
+        Q = Q.unsqueeze(1).expand(-1, 4, -1)  
+        
+        print(f"V size {V.shape}")
+        print(f"Q size {Q.shape}")
+        print(f"Choices shape: {choices.shape}")
+        labels = torch.tensor(np.array(data['answer'].tolist()).argmax(axis=1), dtype=torch.long)
+    
+        
+        dataset = TensorDataset(V,Q, choices, labels)
+        return DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
