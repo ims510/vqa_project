@@ -45,13 +45,14 @@ class CoAttention(nn.Module):
         
         '''
         C = torch.tanh(torch.matmul(Q, self.Wc(V).transpose(1, 2)))
+        print(f"C shape: {C.shape}")
         #--------------------------------------------------------------
         '''En utilisant la matrice d'affinité C, l'image est modifiée en fonction de la question
         et la question est modifiée en fonction de l'image'''
 
         Hv = torch.tanh(self.Wv(V) + torch.matmul(C, self.Wq(Q)))  # features de ;'image
         Hq = torch.tanh(self.Wq(Q) + torch.matmul(C.transpose(1, 2), self.Wv(V)))  # features de la question
-        
+        print(f"Hv shape: {Hv.shape}, Hq shape: {Hq.shape}")
         #-------------------------------------------------------------
         '''
         Ici, j'obtiens un vecteur qui a les probabilités des poids d'attention de chaque region de l'image
@@ -60,7 +61,7 @@ class CoAttention(nn.Module):
 
         av = F.softmax(self.whv(Hv), dim=1) #dim= chaque image a un seul vector réprésentatif
         aq = F.softmax(self.whq(Hq), dim=1) 
-        
+        print(f"av shape: {av.shape}, aq shape: {aq.shape}")
         #-----------------------------------------------------------
         '''
         Multiplie les poids d'attention de l'image pour les features de l'image
@@ -68,14 +69,14 @@ class CoAttention(nn.Module):
         '''
         v_hat = torch.sum(av * V, dim=1)  
         q_hat = torch.sum(aq * Q, dim=1) 
-
+        print(f"v_hat shape: {v_hat.shape}, q_hat shape: {q_hat.shape}")
         return v_hat, q_hat
 
 class Net(nn.Module):
     def __init__(self, d1=2048, d2=768, d3=768, k=768):  #d1: imagee, d2: question, d3: dimension de chaque option de reponse séparée
         super(Net, self).__init__()
         self.co_attention = CoAttention(d1, d2, k)
-        self.fc1 = nn.Linear(d1 + d2 + d3, 1024)
+        self.fc1 = nn.Linear(4*(d1 + d2 + d3), 1024)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(1024, 512)
         self.fc3 = nn.Linear(512, 4)
@@ -97,25 +98,23 @@ class Net(nn.Module):
     def forward(self, V, Q, choices):
         v_hat, q_hat = self.co_attention(V, Q)
         
-        # V = V.unsqueeze(1).expand(-1, 4, -1)  
-        # Q = Q.unsqueeze(1).expand(-1, 4, -1)  
-        v_hat = v_hat.unsqueeze(1)
-        q_hat = q_hat.unsqueeze(1)
-        print(v_hat.shape)
-        print(q_hat.shape)
+        v_hat = v_hat.unsqueeze(1).expand(-1, 4, -1)
+        q_hat = q_hat.unsqueeze(1).expand(-1, 4, -1)
+        
 
-        x = torch.cat([v_hat, q_hat, choices], dim=1)  
-        print("Shape of x after concatenation:", x.shape)
+        x = torch.cat([v_hat, q_hat, choices], dim=2)  
+
+        print(f"x shape after concatenation: {x.shape}")
         
-        
-        # print("v_hat shape:", v_hat.shape)
-        # print("q_hat shape:", q_hat.shape)
+        x = x.view(x.size(0), -1)  # Flatten the tensor
+        print(f"x shape after flattening: {x.shape}")
+ 
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)  
-        
-        scores = x.squeeze(-1)
-        return scores
+
+        print(f"Output shape: {x.shape}")
+        return x
 
 class CustomDataLoader:
     def __init__(self, dataframe, batch_size=32):
@@ -161,10 +160,11 @@ class CustomDataLoader:
         V = V.unsqueeze(1).expand(-1, 4, -1)  
         Q = Q.unsqueeze(1).expand(-1, 4, -1)  
         
-        print(f"V size {V.shape}")
-        print(f"Q size {Q.shape}")
-        print(f"Choices shape: {choices.shape}")
+        # print(f"V size {V.shape}")
+        # print(f"Q size {Q.shape}")
+        # print(f"Choices shape: {choices.shape}")
         labels = torch.tensor(np.array(data['answer'].tolist()).argmax(axis=1), dtype=torch.long)
+        print(labels.shape)
     
         
         dataset = TensorDataset(V,Q, choices, labels)
