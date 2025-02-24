@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from datastructure import Net, CustomDataLoader
+# from datastructure import Net, CustomDataLoader
+from datastructure_maddie_coatt import CoAttentionMCQNet, CustomDataLoader
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import os
 import re
 
-def train_model(model, train_loader, eval_loader,criterion, optimizer, device, num_epochs=10):
+def train_model(model, train_loader, eval_loader,criterion, optimizer, device, num_epochs=50):
     model.to(device)
     model.train()
     for epoch in range(num_epochs):
@@ -18,6 +19,10 @@ def train_model(model, train_loader, eval_loader,criterion, optimizer, device, n
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
+
+            # print(f"Outputs: {outputs}")
+            # print(f"Labels: {labels}")
+            
             # print(inputs.shape)
             loss = criterion(outputs, labels)
             loss.backward()
@@ -173,7 +178,8 @@ def main():
     train_loader = data_loader.get_train_loader()
     eval_loader = data_loader.get_eval_loader()
 
-    model = Net().to(device)
+    # model = Net().to(device)
+    model = CoAttentionMCQNet().to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
