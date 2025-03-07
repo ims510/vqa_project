@@ -36,12 +36,9 @@ class NetSimple(nn.Module):
 
 
 class CoAttentionNetSimple(nn.Module):
-    """
-    A co-attention network that uses attention to combine the image features and question embeddings.
-    """
     def __init__(self, hidden_dim=512):
         super(CoAttentionNetSimple, self).__init__()
-
+        
         self.hidden_dim = hidden_dim
 
         # Placeholder for the weight matrix, will be initialized in forward pass
@@ -50,7 +47,8 @@ class CoAttentionNetSimple(nn.Module):
         # Attention transformation layers
         self.Wv = None
         self.Wq = None
-
+        
+        
         # Attention score layers
         self.w_v = nn.Linear(hidden_dim, 1)
         self.w_q = nn.Linear(hidden_dim, 1)
@@ -63,7 +61,7 @@ class CoAttentionNetSimple(nn.Module):
 
     def forward(self, inputs):
         """
-        Inputs are features from the image, question, and answer choices of the following
+        Inputs are features from the image, question, and answer choices of the following 
         shapes:
         image_features: (B, 2048)
         question_embedding: (B, 768)
@@ -83,9 +81,7 @@ class CoAttentionNetSimple(nn.Module):
         device = inputs.device
         # Initialize the weight matrix based on the batch size
         if self.weight_matrix is None or self.weight_matrix.size(0) != batch_size:
-            self.weight_matrix = nn.Parameter(
-                torch.randn(batch_size, batch_size).to(device)
-            )
+            self.weight_matrix = nn.Parameter(torch.randn(batch_size, batch_size).to(device))
 
         # Initialize the attention transformation layers based on the input dimensions
         # because it can be not the batch size we give as argument if the division of rows by batches is not exact
@@ -93,58 +89,36 @@ class CoAttentionNetSimple(nn.Module):
             self.Wv = nn.Linear(batch_size, self.hidden_dim).to(device)
         if self.Wq is None or self.Wq.in_features != batch_size:
             self.Wq = nn.Linear(batch_size, self.hidden_dim).to(device)
+        
 
-        affinity_matrix = torch.matmul(
-            question_embedding.transpose(1, 0), self.weight_matrix
-        )
-        affinity_matrix = torch.matmul(affinity_matrix, image_features) # affinity matrix: torch.Size([768, 2048])
+        affinity_matrix = torch.matmul(question_embedding.transpose(1, 0), self.weight_matrix)  
+        affinity_matrix = torch.matmul(affinity_matrix, image_features)
+        # print(f"affinity matrix: {affinity_matrix.shape}") # affinity matrix: torch.Size([768, 2048])
         affinity_matrix = torch.tanh(affinity_matrix)  # Apply tanh activation
 
         # Compute Attention Scores
-        H_v = torch.tanh(
-            self.Wv(image_features.transpose(1, 0)).transpose(1, 0)
-            + torch.matmul(
-                self.Wq(question_embedding.transpose(1, 0)).transpose(1, 0),
-                affinity_matrix,
-            )
-        )  # Hv shape: torch.Size([512, 2048])
-        H_q = torch.tanh(
-            self.Wq(question_embedding.transpose(1, 0)).transpose(1, 0)
-            + torch.matmul(
-                self.Wv(image_features.transpose(1, 0)).transpose(1, 0),
-                affinity_matrix.transpose(1, 0),
-            )
-        )  # Hq shape: torch.Size([512, 768])
-
+        H_v = torch.tanh(self.Wv(image_features.transpose(1, 0)).transpose(1, 0) + torch.matmul(self.Wq(question_embedding.transpose(1,0)).transpose(1, 0), affinity_matrix))  # Hv shape: torch.Size([512, 2048])
+        H_q = torch.tanh(self.Wq(question_embedding.transpose(1,0)).transpose(1,0) + torch.matmul(self.Wv(image_features.transpose(1,0)).transpose(1,0), affinity_matrix.transpose(1,0))) # Hq shape: torch.Size([512, 768])
+        # print(f"Hv shape: {H_v.shape}, Hq shape: {H_q.shape}")
 
         # Compute attention weights
-        a_v = F.softmax(
-            self.w_v(H_v.transpose(1, 0)), dim=1
-        )  # a_v shape: torch.Size([2048, 1]),
-        a_q = F.softmax(
-            self.w_q(H_q.transpose(1, 0)), dim=1
-        )  # a_q shape: torch.Size([768, 1])
+        a_v = F.softmax(self.w_v(H_v.transpose(1, 0)), dim=1)  # a_v shape: torch.Size([2048, 1]),
+        a_q = F.softmax(self.w_q(H_q.transpose(1, 0)), dim=1)  # a_q shape: torch.Size([768, 1])
+        # print(f"a_v shape: {a_v.shape}, a_q shape: {a_q.shape}")
 
-        a_v = a_v.squeeze()  # now it's shape 2048
-        a_q = a_q.squeeze()  # now it's shape 768
+        a_v = a_v.squeeze() # now it's shape 2048
+        a_q = a_q.squeeze() # now it's shape 768
+
+        # print(f"a_v shape: {a_v.shape}, a_q shape: {a_q.shape}")
+
 
         # Apply attention weights to get weighted representations
-        v_hat = a_v * image_features  # v_hat shape (torch.Size([32, 2048])
+        v_hat = a_v * image_features  # (torch.Size([32, 2048])
         q_hat = a_q * question_embedding  # q_hat shape: torch.Size([32, 768])
 
-        combined_features = torch.cat(
-            (
-                image_features,
-                question_embedding,
-                choice_1,
-                choice_2,
-                choice_3,
-                choice_4,
-                v_hat,
-                q_hat,
-            ),
-            dim=1,
-        )
+        
+        combined_features = torch.cat((image_features, question_embedding, choice_1, choice_2, choice_3, choice_4, v_hat, q_hat), dim=1)
+        # print(f"combined features shape: {combined_features.shape}")
 
         x = self.fc1(combined_features)
         x = self.relu(x)
