@@ -39,3 +39,5 @@ python train_model.py --model <model_name> --epochs <num_epochs> --save_model
 - save_model: Save the trained model (optional)
 
 Les caracteristiques de chaque architecture sont visible dans le script `datastructure.py`
+
+_Le dossier `old_scripts_for_testing` contient des scripts utilisés dans le developpement des scripts principaux, et sont là juste pour reference. Parties importantes de ces scripts se retrouvent dans les scripts python mentionnés ici, mais les scripts en soi ne fonctionnent pas entierement._
