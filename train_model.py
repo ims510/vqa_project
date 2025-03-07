@@ -1,13 +1,15 @@
+"""
+This script trains a VQA model using the specified architecture and saves the trained model.
+Usage: python train_model.py --model <model_name> --epochs <num_epochs> --save_model
+model_name: Model architecture to use (NetSimple, CoAttentionNetSimple, CoAttentionNetBNDropout)
+num_epochs: Number of epochs to train the model (default: 10)
+save_model: Save the trained model (optional)
+"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from datastructure import NetSimple, CoAttentionNetSimple, CoAttentionNetBNDropout, CustomDataLoader
 import pandas as pd
-import numpy as np
-from tqdm import tqdm
-import os
-import re
 import argparse
 
 def train_model(model, train_loader, eval_loader,criterion, optimizer, device, num_epochs=10):
