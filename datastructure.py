@@ -36,6 +36,9 @@ class NetSimple(nn.Module):
 
 
 class CoAttentionNetSimple(nn.Module):
+    """
+    A simple co-attention network that uses attention to combine the image features and question embeddings.
+    """
     def __init__(self, hidden_dim=512):
         super(CoAttentionNetSimple, self).__init__()
         
@@ -93,24 +96,19 @@ class CoAttentionNetSimple(nn.Module):
 
         affinity_matrix = torch.matmul(question_embedding.transpose(1, 0), self.weight_matrix)  
         affinity_matrix = torch.matmul(affinity_matrix, image_features)
-        # print(f"affinity matrix: {affinity_matrix.shape}") # affinity matrix: torch.Size([768, 2048])
         affinity_matrix = torch.tanh(affinity_matrix)  # Apply tanh activation
 
         # Compute Attention Scores
         H_v = torch.tanh(self.Wv(image_features.transpose(1, 0)).transpose(1, 0) + torch.matmul(self.Wq(question_embedding.transpose(1,0)).transpose(1, 0), affinity_matrix))  # Hv shape: torch.Size([512, 2048])
         H_q = torch.tanh(self.Wq(question_embedding.transpose(1,0)).transpose(1,0) + torch.matmul(self.Wv(image_features.transpose(1,0)).transpose(1,0), affinity_matrix.transpose(1,0))) # Hq shape: torch.Size([512, 768])
-        # print(f"Hv shape: {H_v.shape}, Hq shape: {H_q.shape}")
 
         # Compute attention weights
         a_v = F.softmax(self.w_v(H_v.transpose(1, 0)), dim=1)  # a_v shape: torch.Size([2048, 1]),
         a_q = F.softmax(self.w_q(H_q.transpose(1, 0)), dim=1)  # a_q shape: torch.Size([768, 1])
-        # print(f"a_v shape: {a_v.shape}, a_q shape: {a_q.shape}")
+
 
         a_v = a_v.squeeze() # now it's shape 2048
         a_q = a_q.squeeze() # now it's shape 768
-
-        # print(f"a_v shape: {a_v.shape}, a_q shape: {a_q.shape}")
-
 
         # Apply attention weights to get weighted representations
         v_hat = a_v * image_features  # (torch.Size([32, 2048])
@@ -118,7 +116,6 @@ class CoAttentionNetSimple(nn.Module):
 
         
         combined_features = torch.cat((image_features, question_embedding, choice_1, choice_2, choice_3, choice_4, v_hat, q_hat), dim=1)
-        # print(f"combined features shape: {combined_features.shape}")
 
         x = self.fc1(combined_features)
         x = self.relu(x)
